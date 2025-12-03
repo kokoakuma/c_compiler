@@ -71,10 +71,6 @@ int expect_number() {
     return val;
 }
 
-bool at_eof() {
-    return token->kind == TK_EOF;
-}
-
 Token *new_token(TokenKind kind, Token *cur, char *str) {
     Token *tok = calloc(1, sizeof(Token));
     tok->kind = kind;
@@ -95,7 +91,7 @@ Token *tokenize() {
             continue;
         }
 
-        if (*p == '+' || *p == '-') {
+        if (*p == '+' || *p == '-' || *p == '*' || *p == '/' || *p == '(' || *p == ')') {
             cur = new_token(TK_RESERVED, cur, p++);
             continue;
         }
@@ -130,6 +126,10 @@ struct Node {
     Node *rhs;
     int val;
 };
+
+Node *expr();
+Node *mul();
+Node *primary();
 
 Node *new_node(NodeKind kind, Node *lhs, Node *rhs) {
     Node *node = calloc(1, sizeof(Node));
@@ -182,12 +182,9 @@ Node *expr() {
 }
 
 void gen(Node *node) {
-    // stack created.
-    printf("sub sp, sp, #16");
-
     if (node->kind == ND_NUM) {
         // push
-        printf("   mov x0,#%d\n", node->val);
+        printf("    mov x0, #%d\n", node->val);
         // ARMではpush = アドレスを前に進める。16Byteごとに扱うので、strと同時に16Byte前に移動している
         printf("    str x0, [sp, #-16]!\n");
         return;
@@ -197,8 +194,8 @@ void gen(Node *node) {
     gen(node->rhs);
 
     // stackから取得、n1,n2の順で入れたので、取り出す時はx1,x0
-    printf("    ldr x1, [sp], $16\n");
-    printf("    ldr x0, [sp], $16\n");
+    printf("    ldr x1, [sp], #16\n");
+    printf("    ldr x0, [sp], #16\n");
 
     switch (node->kind)
     {
@@ -216,7 +213,7 @@ void gen(Node *node) {
         break;
     }
 
-    printf("    str x0, [sp, #-16]!\n")
+    printf("    str x0, [sp, #-16]!\n");
 }
 
 int main(int argc, char **argv) {
@@ -227,19 +224,14 @@ int main(int argc, char **argv) {
 
     user_input = argv[1];
     token = tokenize();
+    Node *node = expr();
 
     printf(".globl main\n");
     printf("main:\n");
-    printf("    mov x0, %d\n", expect_number());
 
-    while (!at_eof()) {
-        if (consume('+')) {
-            printf("    add x0, x0, %d\n", expect_number());
-            continue;
-        }
-        expect('-');
-        printf("    sub x0, x0, %d\n", expect_number());
-    }
+    gen(node);
+
+    printf("    ldr x0, [sp], #16\n");
     printf("    ret\n");
     return 0;
 }

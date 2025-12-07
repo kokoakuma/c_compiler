@@ -216,7 +216,8 @@ void gen(Node *node) {
         break;
     }
 
-    printf("    str x0, [sp, #-16]!\n")
+    // 計算結果をpushしつつ、16Byte前に進む（stackを積む）
+    printf("    str x0, [sp, #-16]!\n");
 }
 
 int main(int argc, char **argv) {

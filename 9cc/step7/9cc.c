@@ -52,7 +52,7 @@ void error(char *fmt, ...) {
 
 // handle soperator
 // memcmp is memory comparison
-bool consume(char op) {
+bool consume(char *op) {
     if (token->kind != TK_RESERVED ||
         strlen(op) != token->len ||
         memcmp(token->str, op, token->len))
@@ -61,8 +61,10 @@ bool consume(char op) {
     return true;
 }
 
-void expect(char op) {
-    if (token->kind != TK_RESERVED || token->str[0] != op)
+void expect(char *op) {
+    if (token->kind != TK_RESERVED ||
+        strlen(op) != token->len ||
+        memcmp(token->str, op, token->len))
         error_at(token->str, "Token does not match '%s'.", op);
     token = token->next;
 }
@@ -101,20 +103,24 @@ Token *tokenize() {
             continue;
         }
 
-        if (startswith(p, '==') || startswith(p, "!=") ||
-            startswith(p, "<=") || startswith(p, ">=")) {
+        if (startswith(p, "==") || startswith(p, "!=") ||
+            startswith(p, "<=") || startswith(p, ">=")
+        ) {
                 cur = new_token(TK_RESERVED, cur, p, 2);
                 p += 2;
+                continue;
             }
 
-        if ( strchr('+-*/()<>', *p)) {
+        if ( strchr("+-*/()<>", *p)) {
             cur = new_token(TK_RESERVED, cur, p++, 1);
             continue;
         }
 
         if (isdigit(*p)) {
             cur = new_token(TK_NUM, cur, p, 0);
+            char *q = p; // ポインタの値をコピー
             cur->val = strtol(p, &p, 10); // &pには読み込み完了後のポインタが入る
+            cur->len = p - q; // 差分を計算する
             continue;
         }
 
@@ -170,9 +176,9 @@ Node *new_node_num(int val) {
 }
 
 Node *primary() {
-    if (consume('(')) {
+    if (consume("(")) {
         Node *node = expr();
-        expect(')');
+        expect(")");
         return node;
     }
 
@@ -180,11 +186,11 @@ Node *primary() {
 }
 
 Node *unary() {
-    if (consume('+')) {
+    if (consume("+")) {
         return primary();
     }
     // treat - as 0-x
-    if (consume('-')) {
+    if (consume("-")) {
         return new_node(ND_SUB, new_node_num(0), primary());
     }
     return primary();
@@ -194,9 +200,9 @@ Node *mul() {
     Node *node = unary();
 
     for (;;) {
-        if (consume('*'))
+        if (consume("*"))
             node = new_node(ND_MUL, node, unary());
-        else if (consume('/'))
+        else if (consume("/"))
             node = new_node(ND_DIV, node, unary());
         else
             return node;
@@ -207,9 +213,9 @@ Node *add() {
     Node *node = mul();
 
     for (;;) {
-        if (consume('+'))
+        if (consume("+"))
             node = new_node(ND_ADD, node, mul());
-        else if (consume('-'))
+        else if (consume("-"))
             node = new_node(ND_SUB, node, mul());
         else
             return node;
@@ -220,14 +226,14 @@ Node *relational() {
     Node *node = add();
 
     for (;;) {
-        if (consume('<='))
+        if (consume("<="))
             node = new_node(ND_LE, node, add());
-        else if (consume('<'))
+        else if (consume("<"))
             node = new_node(ND_LT, node, add());
         // >は反転させて、全て<として扱う
-        else if (consume('>='))
+        else if (consume(">="))
             node = new_node(ND_LE, add(),  node);
-        else if (consume('>'))
+        else if (consume(">"))
             node = new_node(ND_LT, add(), node);
         else
             return node;
@@ -238,9 +244,9 @@ Node *equality() {
     Node *node = relational();
 
     for (;;) {
-        if (consume('=='))
+        if (consume("=="))
             node = new_node(ND_EQ, node, relational());
-        else if (consume('!='))
+        else if (consume("!="))
             node = new_node(ND_NE, node, relational());
         else
             return node;
@@ -248,16 +254,7 @@ Node *equality() {
 }
 
 Node *expr() {
-    Node *node = mul();
-
-    for (;;) {
-        if (consume('+'))
-            node = new_node(ND_ADD, node, mul());
-        else if (consume('-'))
-            node = new_node(ND_SUB, node, mul());
-        else
-            return node;
-    }
+    return equality();
 }
 
 void gen(Node *node) {
@@ -289,18 +286,22 @@ void gen(Node *node) {
         break;
     case ND_DIV:
         printf("    sdiv x0, x0, x1\n");
+        break;
     case ND_EQ:
-        printf("    cmp x0, x1,\n");
-        printf("    cset x0, eq,\n");
+        printf("    cmp x0, x1\n");
+        printf("    cset x0, eq\n");
+        break;
     case ND_NE:
-        printf("    cmp x0, x1,\n");
-        printf("    cset x0, ne,\n");
+        printf("    cmp x0, x1\n");
+        printf("    cset x0, ne\n");
+        break;
     case ND_LT:
-        printf("    cmp x0, x1,\n");
-        printf("    cset x0, lt,\n");
+        printf("    cmp x0, x1\n");
+        printf("    cset x0, lt\n");
+        break;
     case ND_LE:
-        printf("    cmp x0, x1,\n");
-        printf("    cset x0, le,\n");
+        printf("    cmp x0, x1\n");
+        printf("    cset x0, le\n");
         break;
     }
 

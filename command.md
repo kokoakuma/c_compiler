@@ -14,3 +14,15 @@ https://zenn.dev/micin/articles/78f292afb77ef0
 bash
 ここから
 https://www.sigbus.info/compilerbook#%E9%96%A2%E6%95%B0%E5%91%BC%E3%81%B3%E5%87%BA%E3%81%97%E3%82%92%E5%90%AB%E3%82%80%E4%BE%8B
+
+
+セグメンテーションフォルトが発生した時は、
+
+Docker の中で：
+
+gdb --args ./9cc "0;"
+
+gdb が起動したら：
+
+run
+bt
